@@ -32,6 +32,8 @@ build, preserve notices, and provide corresponding source as required. Sources:
 Using a user-supplied FFmpeg binary may carry different licensing obligations;
 the user/distributor is responsible for the selected build.
 
+Gestaltrun changes keep CLI state and profiles inside DSH_HOME, disable cross-instance orphan reaping, and retain the MIT notices. Browser binaries are user-installed and are not distributed in this package.
+
 Additional local modifications on top of upstream (see `runtime/ego-linux/src/chrome.mjs`):
 - `EGO_LINUX_PROXY` support: injects `--proxy-server` / `--proxy-bypass-list` into the
   launched Chrome, so the agent browser can reach the network through a local proxy

@@ -1,3 +1,4 @@
+import { EgoEventSource } from './events.ts'
 /** Injected by the DSH ModuleLoader factory wrapper (tsdown banner). */
 declare function require(id: string): any
 
@@ -66,7 +67,7 @@ declare function require(id: string): any
 		// dsh-better-sidebar have no such module-table key, and a strict
 		// resolver throws on the ctx.betterSidebar property access itself
 		// (issue #29). Probe it defensively below instead.
-		const inject = ['slots', 'locale', 'connection', 'betterSidebar']
+		const inject = ['slots', 'locale', 'connection']
 
 		// ── Settings card: locale ─────────────────────────────────────────
 		var SETTINGS_NS = 'ego-browser'
@@ -956,10 +957,10 @@ declare function require(id: string): any
 				var dispose = ctx.on('connection/reset', refresh)
 				return function () { dispose() }
 			}, 'ego-browser: settings invalidation')
-			ctx.slots.inject('settings.plugin.item', function* () {
-				yield ctx.slots.register({
+			ctx.slots.inject('settings.plugin.item', function () {
+				return ctx.slots.register({
 					name: 'settings.plugin.item',
-					key: SETTINGS_NS,
+					id: SETTINGS_NS,
 					order: 60,
 					locale: SETTINGS_NS,
 					inject: function () { return { controller: controller, useSnapshot: useSnapshot } },
@@ -972,7 +973,7 @@ declare function require(id: string): any
 		// ctx.betterSidebar property access itself when the service is absent
 		// (issue #29), so the probe below is wrapped and never assumed.
 		var betterSidebarService
-		try { betterSidebarService = ctx.betterSidebar } catch (e) { betterSidebarService = undefined }
+		try { betterSidebarService = ctx.get('betterSidebar') } catch (e) { betterSidebarService = undefined }
 		if (betterSidebarService !== undefined) {
 			ctx.effect(() => mountSidebarTab(ctx, betterSidebarService), 'ego-browser sidebar tab')
 		} else {
@@ -1732,7 +1733,7 @@ declare function require(id: string): any
 					fetch(WATCH_STATUS_ROUTE, { cache: 'no-store' }).then((res) => res.ok ? res.json() : null).then(applyCaptureStatus).catch(() => {})
 					try { if (sse) sse.close() } catch {}
 					doConnected = false
-					sse = new EventSource('/api/ego/stream')
+					sse = new EgoEventSource('/api/ego/stream')
 					sse.onopen = () => { doConnected = true }
 					// A frame event looks like: { targetId, data (base64 jpeg), ts, vw, vh }.
 					sse.addEventListener('frame', (ev) => {
@@ -2484,7 +2485,7 @@ clearTimeout((panel as any)._dshHideT)
 			var self = this
 			fetch(WATCH_STATUS_ROUTE, { cache: 'no-store' }).then(function (res) { return res.ok ? res.json() : null }).then(function (status) { self._applyCaptureStatus(status) }).catch(function () {})
 			try {
-				this.sse = new EventSource('/api/ego/stream')
+				this.sse = new EgoEventSource('/api/ego/stream')
 			} catch (e) { return }
 			this.sse.addEventListener('frame', function (ev) {
 				try {
@@ -3139,7 +3140,7 @@ clearTimeout((panel as any)._dshHideT)
 			// opens its OWN EventSource so it works even before the Tab is
 			// mounted (the Tab's controller only connects after the Tab opens).
 			var probeSse = null
-			try { probeSse = new EventSource('/api/ego/stream') } catch (e) {}
+			try { probeSse = new EgoEventSource('/api/ego/stream') } catch (e) {}
 			if (probeSse) {
 				probeSse.addEventListener('tool-call', function (ev) {
 					if (probeDisposed || autoOpened) return

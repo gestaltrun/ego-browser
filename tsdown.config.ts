@@ -20,7 +20,7 @@
  */
 import { defineConfig, type UserConfig } from 'tsdown'
 
-const ID = 'dsh-ego-browser'
+const ID = '@gestaltrun/dsh-ego-browser'
 
 /** Host-provided singletons: never bundle, keep as runtime imports. */
 const HOST_EXTERNALS = [
@@ -47,6 +47,7 @@ const host: UserConfig = {
   entry: { index: 'src/index.ts' },
   outDir: 'lib',
   format: ['esm'],
+  fixedExtension: false,
   platform: 'node',
   target: 'es2024',
   dts: false,

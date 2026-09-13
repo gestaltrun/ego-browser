@@ -16,6 +16,7 @@
 //                        → { ok: true, value: { config: ResolvedConfig } }
 // Errors carry { ok: false, error: { code, message } }.
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { egoRequestRejection } from './http-auth.ts'
 import { resolveConfig } from './config.ts'
 import { SETTINGS_NAMESPACE } from './settings.ts'
 import { rewriteGithubUrl } from './ffmpeg-manifest.ts'
@@ -85,6 +86,8 @@ export function registerEgoBrowserGateway(
       handler: async (reqRaw: unknown, resRaw: unknown) => {
         const req = reqRaw as IncomingMessage
         const res = resRaw as ServerResponse
+        const rejection = egoRequestRejection(ctx, req)
+        if (rejection !== undefined) { writeJson(res, rejection, envelopeError('unauthorized', 'Host authentication required')); return }
         if (req.method !== 'POST') {
           writeJson(res, 405, envelopeError('method-not-allowed', 'POST only'))
           return

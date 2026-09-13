@@ -1,8 +1,8 @@
 {
   "$schema": "https://dsh.community/schemas/dsh-plugin-0.15.json",
-  "id": "dsh-ego-browser",
+  "id": "@gestaltrun/dsh-ego-browser",
   "name": "ego-browser",
-  "version": "0.8.3",
+  "version": "0.8.3-gestaltrun.0",
   "manifestVersion": "0.15",
   "facets": {
     "host": {

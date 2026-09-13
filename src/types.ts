@@ -26,19 +26,8 @@ export interface SubprocessHandle {
   readonly collected: { stdout?: CollectReader; stderr?: CollectReader }
 }
 
-/** Structural subset of the dsh-subprocess `SubprocessSpawnSpec`. */
-export interface SpawnSpec {
-  argv: readonly string[]
-  cwd?: string
-  env?: NodeJS.ProcessEnv
-  stdio: {
-    stdin: { data: string }
-    stdout: { maxBytes: number; spill?: { maxBytes: number } }
-    stderr: { maxBytes: number; spill?: { maxBytes: number } }
-  }
-  graceMs: number
-  signal?: AbortSignal
-}
+/** The SDK owns every required field of a process launch request. */
+export type SpawnSpec = import('@deepseek-ai/dsh-subprocess').SubprocessSpawnSpec
 
 export interface SubprocessService {
   spawn(spec: SpawnSpec): SubprocessHandle

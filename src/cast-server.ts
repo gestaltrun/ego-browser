@@ -1,17 +1,7 @@
-/**
- * ego-browser cast-server — host half of the realtime watch panel.
- *
- * Bridges the client UI (/api/ego/*) to the ego-cast worker
- * (bin/ego-cast-worker.mjs) that attaches to the agent's live browser and
- * streams screencast JPEGs. Everything the agent's own browser does is pushed;
- * this host route only *reads* the worker's loopback JSON. No navigation, no
- * writes, no host env changes — consistent with the plugin's read-only stance.
- *
- * Lifecycle: the worker is launched lazily (only once), on the first request,
- * when a live agent browser is expected. If no browser.json exists yet it
- * exits cleanly; we surface an empty spaces list so the panel says
- * "no live browser right now" instead of erroring.
- */
+/** Authenticated watch, input, and capture routes for the plugin's private Ego worker. */
+import { egoRequestRejection } from './http-auth.ts'
+import { managedRuntimeEnvironment, managedStateDirectory } from './managed-runtime.ts'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { request, type ClientRequest, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { EgoContext, RegisterRouteOptions, ResolvedConfig, WebServerLike } from './types.ts'
@@ -60,19 +50,7 @@ export function markEgoToolCall(): void {
 }
 
 function castStatePath(): string {
-  // Mirror the ego-lite runtime state dir across platforms so we find the
-  // worker's ego-cast.json wherever it ran: Windows uses
-  // %LOCALAPPDATA%\ego-lite-linux; POSIX uses $XDG_STATE_HOME (default
-  // ~/.local/state)/ego-lite-linux. Honors EGO_LINUX_STATE_DIR overrides.
-  const e = process.env
-  const isWin = process.platform === 'win32'
-  const home = e.HOME || e.USERPROFILE || (isWin ? e.LOCALAPPDATA || '' : '/root')
-  const stateHome = e.EGO_LINUX_STATE_DIR || (isWin
-    ? (e.LOCALAPPDATA || `${home}\\AppData\\Local`)
-    : (e.XDG_STATE_HOME || `${home}/.local/state`))
-  return stateHome.endsWith('ego-lite-linux')
-    ? `${stateHome}/ego-cast.json`
-    : `${stateHome}/ego-lite-linux/ego-cast.json`
+  return join(managedStateDirectory(), 'ego-cast.json')
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -360,13 +338,18 @@ type PushConfig = (cfg: ResolvedConfig) => Promise<void>
  */
 function makeEnsureWorker(ctx: EgoContext, cfg: ResolvedConfig, ffmpegManager: FfmpegInstallationManager | null): EnsureWorker {
   let lastAttempt = 0
+  let pending: Promise<number | null> | undefined
+  const lifetime = new AbortController()
+  let workerDone: Promise<unknown> | undefined
+  ctx.effect?.(() => async () => { lifetime.abort(); await workerDone?.catch(() => {}) }, 'ego-browser: capture worker')
   async function launchedWorkerPort(): Promise<number | null> {
     const state = await knownWorkerState()
     if (state.pid === null || !isProcessAlive(state.pid)) return null
     const alive = await proxyFrom(state.port!, '/api/health')
     return alive ? state.port : null
   }
-  return async function ensureWorker(): Promise<number | null> {
+  async function startWorker(): Promise<number | null> {
+    if (lifetime.signal.aborted) return null
     const running = await launchedWorkerPort()
     if (running !== null) return running
     // Worker is dead or not yet up; spawn one, rate-limited.
@@ -381,6 +364,9 @@ function makeEnsureWorker(ctx: EgoContext, cfg: ResolvedConfig, ffmpegManager: F
         const initCfg = JSON.stringify(captureConfig(cfg, ffmpegManager))
         const handle = ctx.subprocess.spawn({
           argv: [process.execPath, WORKER_BIN, initCfg],
+          cwd: process.cwd(),
+          env: managedRuntimeEnvironment(),
+          signal: lifetime.signal,
           stdio: {
             stdin: { data: '' },
             stdout: { maxBytes: 8192 },
@@ -388,9 +374,10 @@ function makeEnsureWorker(ctx: EgoContext, cfg: ResolvedConfig, ffmpegManager: F
           },
           graceMs: 12_000,
         })
-        handle.done.catch(() => null)
+        workerDone = handle.done
+        void handle.done.catch(() => null)
         const deadline = Date.now() + 8000
-        while (Date.now() < deadline) {
+        while (!lifetime.signal.aborted && Date.now() < deadline) {
           const ready = await launchedWorkerPort()
           if (ready !== null) return ready
           await new Promise((resolve) => setTimeout(resolve, 100))
@@ -402,6 +389,7 @@ function makeEnsureWorker(ctx: EgoContext, cfg: ResolvedConfig, ffmpegManager: F
     }
     return null
   }
+  return () => pending ??= startWorker().finally(() => { pending = undefined })
 }
 
 /**
@@ -454,21 +442,13 @@ export function initCastServer(
     return
   }
 
-  // ── trust fence for /api/ego/* ────────────────────────────────────────────
-  // Exact-path routes match BEFORE the host's `/api` prefix trust-fence route,
-  // so every handler below would otherwise answer unauthenticated requests.
-  // The host issues a `dsh-auth-<processKey>` cookie that is HttpOnly AND
-  // SameSite=Strict: a cross-site page (CSRF driver-by) never carries it, so
-  // requiring its mere presence closes the remote surface. A local process can
-  // still forge the header, but that is the same threat tier as the host's own
-  // token fence (a local process can read the process token too).
-  const isTrustedRequest = (req: IncomingMessage): boolean =>
-    /(?:^|;\s*)dsh-auth-[^=]+=/.test(String(req.headers.cookie ?? ''))
+  // Every named route authenticates before worker access or mutation.
   const guardHandler = (handler: NonNullable<RegisterRouteOptions['handler']>) =>
     async (req: unknown, resRaw: unknown) => {
       const res = resRaw as ServerResponse
-      if (!isTrustedRequest(req as IncomingMessage)) {
-        res.statusCode = 401
+      const rejection = egoRequestRejection(ctx, req as IncomingMessage)
+      if (rejection !== undefined) {
+        res.statusCode = rejection
         res.setHeader('Content-Type', 'application/json; charset=utf-8')
         res.end('{"ok":false,"error":"unauthorized"}')
         return

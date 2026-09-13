@@ -1,0 +1,48 @@
+name: Publish Gestaltrun Ego plugin
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the validated candidate archive to npm
+        type: boolean
+        default: false
+      npm_tag:
+        description: npm distribution tag
+        type: string
+        default: candidate
+permissions:
+  contents: read
+concurrency:
+  group: gestaltrun-ego-release
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.repository == 'gestaltrun/ego-browser'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+          scope: '@gestaltrun'
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm release:pack -- --out artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gestaltrun-ego-browser
+          path: artifacts/*
+          if-no-files-found: error
+      - if: inputs.publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TAG: ${{ inputs.npm_tag }}
+        run: pnpm release:publish -- --from artifacts --tag "$NPM_TAG"

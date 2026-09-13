@@ -5,14 +5,14 @@ const HOME = homedir();
 const IS_WIN = process.platform === "win32";
 
 /** Persistent browser profile — the Linux stand-in for the ego lite app's profile. */
-export const DATA_DIR = IS_WIN
+export const DATA_DIR = process.env.EGO_LINUX_DATA_DIR || (IS_WIN
   ? join(process.env.LOCALAPPDATA || join(HOME, "AppData", "Local"), "ego-lite-linux")
-  : join(process.env.XDG_DATA_HOME || join(HOME, ".local", "share"), "ego-lite-linux");
+  : join(process.env.XDG_DATA_HOME || join(HOME, ".local", "share"), "ego-lite-linux"));
 
 /** Runtime state shared across heredoc invocations (each run is its own process). */
-export const STATE_DIR = IS_WIN
+export const STATE_DIR = process.env.EGO_LINUX_STATE_DIR || (IS_WIN
   ? join(process.env.LOCALAPPDATA || join(HOME, "AppData", "Local"), "ego-lite-linux")
-  : join(process.env.XDG_STATE_HOME || join(HOME, ".local", "state"), "ego-lite-linux");
+  : join(process.env.XDG_STATE_HOME || join(HOME, ".local", "state"), "ego-lite-linux"));
 
 export const PROFILE_DIR = process.env.EGO_LINUX_PROFILE || join(DATA_DIR, "profile");
 export const BROWSER_STATE_FILE = join(STATE_DIR, "browser.json");

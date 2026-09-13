@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { constants, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, platform } from "node:os";
 import { join } from "node:path";
-import { execFile, execFileSync, spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { access } from "node:fs/promises";
 import { promisify } from "node:util";
 //#region \0rolldown/runtime.js
@@ -25,7 +25,7 @@ var __copyProps = (to, from, except, desc) => {
 	}
 	return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule || !__hasOwnProp.call(mod, "default") ? __defProp(target, "default", {
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", {
 	value: mod,
 	enumerable: true
 }) : target, mod));
@@ -1211,7 +1211,7 @@ var require_sender = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const { mask: applyMask, toBuffer } = require_buffer_util();
 	const kByteLength = Symbol("kByteLength");
 	const maskBuffer = Buffer.alloc(4);
-	const RANDOM_POOL_SIZE = 8192;
+	const RANDOM_POOL_SIZE = 8 * 1024;
 	let randomPool;
 	let randomPoolPointer = RANDOM_POOL_SIZE;
 	const DEFAULT = 0;
@@ -1286,13 +1286,12 @@ var require_sender = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				offset = 6;
 			}
 			let dataLength;
-			if (typeof data === "string") {
-				if ((!options.mask || skipMasking) && options[kByteLength] !== void 0) dataLength = options[kByteLength];
-				else {
-					data = Buffer.from(data);
-					dataLength = data.length;
-				}
-			} else {
+			if (typeof data === "string") if ((!options.mask || skipMasking) && options[kByteLength] !== void 0) dataLength = options[kByteLength];
+			else {
+				data = Buffer.from(data);
+				dataLength = data.length;
+			}
+			else {
 				dataLength = data.length;
 				merge = options.mask && options.readOnly && !skipMasking;
 			}
@@ -1404,16 +1403,15 @@ var require_sender = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				readOnly,
 				rsv1: false
 			};
-			if (isBlob(data)) {
-				if (this._state !== DEFAULT) this.enqueue([
-					this.getBlobData,
-					data,
-					false,
-					options,
-					cb
-				]);
-				else this.getBlobData(data, false, options, cb);
-			} else if (this._state !== DEFAULT) this.enqueue([
+			if (isBlob(data)) if (this._state !== DEFAULT) this.enqueue([
+				this.getBlobData,
+				data,
+				false,
+				options,
+				cb
+			]);
+			else this.getBlobData(data, false, options, cb);
+			else if (this._state !== DEFAULT) this.enqueue([
 				this.dispatch,
 				data,
 				false,
@@ -1455,16 +1453,15 @@ var require_sender = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				readOnly,
 				rsv1: false
 			};
-			if (isBlob(data)) {
-				if (this._state !== DEFAULT) this.enqueue([
-					this.getBlobData,
-					data,
-					false,
-					options,
-					cb
-				]);
-				else this.getBlobData(data, false, options, cb);
-			} else if (this._state !== DEFAULT) this.enqueue([
+			if (isBlob(data)) if (this._state !== DEFAULT) this.enqueue([
+				this.getBlobData,
+				data,
+				false,
+				options,
+				cb
+			]);
+			else this.getBlobData(data, false, options, cb);
+			else if (this._state !== DEFAULT) this.enqueue([
 				this.dispatch,
 				data,
 				false,
@@ -1525,16 +1522,15 @@ var require_sender = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				readOnly,
 				rsv1
 			};
-			if (isBlob(data)) {
-				if (this._state !== DEFAULT) this.enqueue([
-					this.getBlobData,
-					data,
-					this._compress,
-					opts,
-					cb
-				]);
-				else this.getBlobData(data, this._compress, opts, cb);
-			} else if (this._state !== DEFAULT) this.enqueue([
+			if (isBlob(data)) if (this._state !== DEFAULT) this.enqueue([
+				this.getBlobData,
+				data,
+				this._compress,
+				opts,
+				cb
+			]);
+			else this.getBlobData(data, this._compress, opts, cb);
+			else if (this._state !== DEFAULT) this.enqueue([
 				this.dispatch,
 				data,
 				this._compress,
@@ -1967,54 +1963,51 @@ var require_extension = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 		let i = 0;
 		for (; i < header.length; i++) {
 			code = header.charCodeAt(i);
-			if (extensionName === void 0) {
-				if (end === -1 && tokenChars[code] === 1) {
-					if (start === -1) start = i;
-				} else if (i !== 0 && (code === 32 || code === 9)) {
-					if (end === -1 && start !== -1) end = i;
-				} else if (code === 59 || code === 44) {
-					if (start === -1) throw new SyntaxError(`Unexpected character at index ${i}`);
-					if (end === -1) end = i;
-					const name = header.slice(start, end);
-					if (code === 44) {
-						push(offers, name, params);
-						params = Object.create(null);
-					} else extensionName = name;
-					start = end = -1;
-				} else throw new SyntaxError(`Unexpected character at index ${i}`);
-			} else if (paramName === void 0) {
-				if (end === -1 && tokenChars[code] === 1) {
-					if (start === -1) start = i;
-				} else if (code === 32 || code === 9) {
-					if (end === -1 && start !== -1) end = i;
-				} else if (code === 59 || code === 44) {
-					if (start === -1) throw new SyntaxError(`Unexpected character at index ${i}`);
-					if (end === -1) end = i;
-					push(params, header.slice(start, end), true);
-					if (code === 44) {
-						push(offers, extensionName, params);
-						params = Object.create(null);
-						extensionName = void 0;
-					}
-					start = end = -1;
-				} else if (code === 61 && start !== -1 && end === -1) {
-					paramName = header.slice(start, i);
-					start = end = -1;
-				} else throw new SyntaxError(`Unexpected character at index ${i}`);
-			} else if (isEscaping) {
+			if (extensionName === void 0) if (end === -1 && tokenChars[code] === 1) {
+				if (start === -1) start = i;
+			} else if (i !== 0 && (code === 32 || code === 9)) {
+				if (end === -1 && start !== -1) end = i;
+			} else if (code === 59 || code === 44) {
+				if (start === -1) throw new SyntaxError(`Unexpected character at index ${i}`);
+				if (end === -1) end = i;
+				const name = header.slice(start, end);
+				if (code === 44) {
+					push(offers, name, params);
+					params = Object.create(null);
+				} else extensionName = name;
+				start = end = -1;
+			} else throw new SyntaxError(`Unexpected character at index ${i}`);
+			else if (paramName === void 0) if (end === -1 && tokenChars[code] === 1) {
+				if (start === -1) start = i;
+			} else if (code === 32 || code === 9) {
+				if (end === -1 && start !== -1) end = i;
+			} else if (code === 59 || code === 44) {
+				if (start === -1) throw new SyntaxError(`Unexpected character at index ${i}`);
+				if (end === -1) end = i;
+				push(params, header.slice(start, end), true);
+				if (code === 44) {
+					push(offers, extensionName, params);
+					params = Object.create(null);
+					extensionName = void 0;
+				}
+				start = end = -1;
+			} else if (code === 61 && start !== -1 && end === -1) {
+				paramName = header.slice(start, i);
+				start = end = -1;
+			} else throw new SyntaxError(`Unexpected character at index ${i}`);
+			else if (isEscaping) {
 				if (tokenChars[code] !== 1) throw new SyntaxError(`Unexpected character at index ${i}`);
 				if (start === -1) start = i;
 				else if (!mustUnescape) mustUnescape = true;
 				isEscaping = false;
-			} else if (inQuotes) {
-				if (tokenChars[code] === 1) {
-					if (start === -1) start = i;
-				} else if (code === 34 && start !== -1) {
-					inQuotes = false;
-					end = i;
-				} else if (code === 92) isEscaping = true;
-				else throw new SyntaxError(`Unexpected character at index ${i}`);
-			} else if (code === 34 && header.charCodeAt(i - 1) === 61) inQuotes = true;
+			} else if (inQuotes) if (tokenChars[code] === 1) {
+				if (start === -1) start = i;
+			} else if (code === 34 && start !== -1) {
+				inQuotes = false;
+				end = i;
+			} else if (code === 92) isEscaping = true;
+			else throw new SyntaxError(`Unexpected character at index ${i}`);
+			else if (code === 34 && header.charCodeAt(i - 1) === 61) inQuotes = true;
 			else if (end === -1 && tokenChars[code] === 1) {
 				if (start === -1) start = i;
 			} else if (start !== -1 && (code === 32 || code === 9)) {
@@ -2136,12 +2129,10 @@ var require_websocket = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				this._isServer = false;
 				this._redirects = 0;
 				if (protocols === void 0) protocols = [];
-				else if (!Array.isArray(protocols)) {
-					if (typeof protocols === "object" && protocols !== null) {
-						options = protocols;
-						protocols = [];
-					} else protocols = [protocols];
-				}
+				else if (!Array.isArray(protocols)) if (typeof protocols === "object" && protocols !== null) {
+					options = protocols;
+					protocols = [];
+				} else protocols = [protocols];
 				initAsClient(this, address, protocols, options);
 			} else {
 				this._autoPong = options.autoPong;
@@ -2606,9 +2597,9 @@ var require_websocket = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			autoPong: true,
 			closeTimeout: CLOSE_TIMEOUT,
 			protocolVersion: protocolVersions[1],
-			maxBufferedChunks: 262144,
-			maxFragments: 16384,
-			maxPayload: 104857600,
+			maxBufferedChunks: 256 * 1024,
+			maxFragments: 16 * 1024,
+			maxPayload: 100 * 1024 * 1024,
 			skipUTF8Validation: false,
 			perMessageDeflate: true,
 			followRedirects: false,
@@ -2683,10 +2674,8 @@ var require_websocket = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			}
 			opts.headers["Sec-WebSocket-Protocol"] = protocols.join(",");
 		}
-		if (opts.origin) {
-			if (opts.protocolVersion < 13) opts.headers["Sec-WebSocket-Origin"] = opts.origin;
-			else opts.headers.Origin = opts.origin;
-		}
+		if (opts.origin) if (opts.protocolVersion < 13) opts.headers["Sec-WebSocket-Origin"] = opts.origin;
+		else opts.headers.Origin = opts.origin;
 		if (parsedUrl.username || parsedUrl.password) opts.auth = `${parsedUrl.username}:${parsedUrl.password}`;
 		if (isIpcUrl) {
 			const parts = opts.path.split(":");
@@ -3287,9 +3276,9 @@ var require_websocket_server = /* @__PURE__ */ __commonJSMin(((exports, module) 
 			options = {
 				allowSynchronousEvents: true,
 				autoPong: true,
-				maxBufferedChunks: 262144,
-				maxFragments: 16384,
-				maxPayload: 104857600,
+				maxBufferedChunks: 256 * 1024,
+				maxFragments: 16 * 1024,
+				maxPayload: 100 * 1024 * 1024,
 				skipUTF8Validation: false,
 				perMessageDeflate: false,
 				handleProtocols: null,
@@ -3372,10 +3361,9 @@ var require_websocket_server = /* @__PURE__ */ __commonJSMin(((exports, module) 
 					this._removeListeners();
 					this._removeListeners = this._server = null;
 				}
-				if (this.clients) {
-					if (!this.clients.size) process.nextTick(emitClose, this);
-					else this._shouldEmitClose = true;
-				} else process.nextTick(emitClose, this);
+				if (this.clients) if (!this.clients.size) process.nextTick(emitClose, this);
+				else this._shouldEmitClose = true;
+				else process.nextTick(emitClose, this);
 			} else {
 				const server = this._server;
 				this._removeListeners();
@@ -4296,7 +4284,7 @@ var CaptureManager = class {
 };
 //#endregion
 //#region src/worker/mp4-fragments.ts
-const MAX_BOX_BYTES = 67108864;
+const MAX_BOX_BYTES = 64 * 1024 * 1024;
 var Mp4FragmentParser = class {
 	onInit;
 	onFragment;
@@ -4557,7 +4545,7 @@ ConvertTo-Json -Compress -InputObject @($items)
 		encoding: "utf8",
 		windowsHide: true,
 		timeout: 5e3,
-		maxBuffer: 1048576
+		maxBuffer: 1024 * 1024
 	});
 	const parsed = JSON.parse(stdout.trim() || "[]");
 	return Array.isArray(parsed) ? parsed : [parsed];
@@ -4744,6 +4732,7 @@ async function selectEncoder(path, requested, spawn = defaultSpawn, capture = nu
 			"-loglevel",
 			"error",
 			...platform === "win32" && capture?.source ? buildCaptureInput({
+				platform,
 				source: capture.source,
 				fps: capture.fps,
 				maxWidth: capture.maxWidth,
@@ -5028,8 +5017,7 @@ var FfmpegCaptureBackend = class {
 //#region src/worker/ego-cast-worker.ts
 const SENTINEL = "@@DSH_RESULT@@";
 const HOME = homedir() || process.env.HOME || process.env.USERPROFILE || "/root";
-const IS_WIN = platform() === "win32";
-const STATE_HOME = IS_WIN ? process.env.LOCALAPPDATA || join(HOME, "AppData", "Local") : process.env.XDG_STATE_HOME || join(HOME, ".local", "state");
+const STATE_HOME = platform() === "win32" ? process.env.LOCALAPPDATA || join(HOME, "AppData", "Local") : process.env.XDG_STATE_HOME || join(HOME, ".local", "state");
 const STATE_DIR = process.env.EGO_LINUX_STATE_DIR || join(STATE_HOME, "ego-lite-linux");
 const BROWSER_STATE_FILE = join(STATE_DIR, "browser.json");
 const CAST_STATE_FILE = join(STATE_DIR, "ego-cast.json");
@@ -5372,46 +5360,7 @@ async function connectLoop() {
 function sleep(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
-function stopSiblingWorkers() {
-	const self = String(process.pid);
-	if (IS_WIN) {
-		const ps = `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like '*ego-cast-worker.mjs*' -and $_.ProcessId -ne ${self} } | Select-Object -ExpandProperty ProcessId`;
-		try {
-			const output = execFileSync("powershell.exe", [
-				"-NoProfile",
-				"-NonInteractive",
-				"-EncodedCommand",
-				Buffer.from(ps, "utf16le").toString("base64")
-			], {
-				encoding: "utf8",
-				timeout: 8e3
-			});
-			for (const line of output.split(/\r?\n/)) if (/^\d+$/.test(line.trim())) try {
-				execFileSync("taskkill", [
-					"/PID",
-					line.trim(),
-					"/T",
-					"/F"
-				], { stdio: "ignore" });
-			} catch {}
-		} catch {}
-		return;
-	}
-	try {
-		const output = execFileSync("ps", ["-eo", "pid=,args="], {
-			encoding: "utf8",
-			timeout: 8e3
-		});
-		for (const line of output.split("\n")) {
-			const match = line.match(/^\s*(\d+)\s+(.+)$/);
-			if (match && match[1] !== self && match[2].includes("ego-cast-worker.mjs")) try {
-				process.kill(Number(match[1]), "SIGTERM");
-			} catch {}
-		}
-	} catch {}
-}
 async function main() {
-	stopSiblingWorkers();
 	rmSync(CAST_STATE_FILE, { force: true });
 	const server = createServer(async (req, res) => {
 		const url = new URL(req.url ?? "/", "http://127.0.0.1");

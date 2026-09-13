@@ -353,6 +353,7 @@ async function ownsOurProfile(pid, profileDir) {
  * @returns {Promise<number>} How many orphans were signalled.
  */
 export async function reapOrphanedBrowsers() {
+  if (process.env.EGO_LINUX_REAP_ORPHANS === "0") return 0;
   let entries;
   try {
     entries = await readdir("/proc");

@@ -52,7 +52,7 @@ describe("resolveEgoEnv (Windows)", () => {
     }
   });
 
-  it("never overrides a user-set EGO_LINUX_CHROME on Windows", () => {
+  it("does not adopt an external Ego engine on Windows", () => {
     const userSet = "D:\\my-chrome.exe";
     const env = resolveEgoEnv(
       {},
@@ -64,7 +64,7 @@ describe("resolveEgoEnv (Windows)", () => {
         },
       },
     );
-    expect(env.EGO_LINUX_CHROME).toBe(userSet);
+    expect(env.EGO_LINUX_CHROME).not.toBe(userSet);
   });
 
   it("does not set EGO_LINUX_HEADLESS on Windows (desktop session always present)", () => {
@@ -145,7 +145,7 @@ describe("resolveEgoEnv (chromePath config)", () => {
     }
   });
 
-  it("user-set EGO_LINUX_CHROME env var still wins over cfg.chromePath", () => {
+  it("explicit plugin chromePath overrides an external Ego environment", () => {
     const userSet = "/usr/bin/my-chrome";
     const env = resolveEgoEnv(
       { chromePath: "/from/config/chrome" },
@@ -157,7 +157,7 @@ describe("resolveEgoEnv (chromePath config)", () => {
         },
       },
     );
-    expect(env.EGO_LINUX_CHROME).toBe(userSet);
+    expect(env.EGO_LINUX_CHROME).toBe("/from/config/chrome");
   });
 });
 
@@ -191,7 +191,7 @@ describe("resolveEgoEnv (auto-adapt off)", () => {
 // ─── resolveEgoEnv: user wins ──────────────────────────────────────────────
 
 describe("resolveEgoEnv (user override)", () => {
-  it("never overrides EGO_LINUX_CHROME the user already set (POSIX root)", () => {
+  it("uses the packaged engine instead of an external Ego engine", () => {
     const userSet = "/usr/bin/chromium";
     const env = resolveEgoEnv(
       {},
@@ -199,11 +199,12 @@ describe("resolveEgoEnv (user override)", () => {
         platform: "linux",
         baseEnv: {
           EGO_LINUX_CHROME: userSet,
+          DSH_EGO_CHROME_PATH: "/resources/ego-chromium/chrome",
           HOME: "/root",
         },
       },
     );
-    expect(env.EGO_LINUX_CHROME).toBe(userSet);
+    expect(env.EGO_LINUX_CHROME).toBe("/resources/ego-chromium/chrome");
   });
 
   it("never overrides EGO_LINUX_HEADLESS the user already set", () => {

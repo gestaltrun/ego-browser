@@ -1,3 +1,21 @@
+# Gestaltrun Ego Browser
+
+`@gestaltrun/dsh-ego-browser@0.8.3-gestaltrun.0` 基于 [Fisfzy/dsh-ego-browser](https://github.com/Fisfzy/dsh-ego-browser) 的 `6133edfbdb3ceb6a982e0d4147860b3c11e1010c`，适配 DSH `0.1.5-rc.2`、Cordis `4.0.2` 和 Gestaltrun Better Sidebar。
+
+默认注册 32 个 `ego_*` 工具和「Agent 浏览器」侧边栏标签。插件复用本机已安装的 Chrome、Edge 或 Chromium 可执行文件，以独立进程启动，资料与运行状态保存在 `$DSH_HOME/ego-browser`（默认 `~/.dsh/ego-browser`）。它不连接现有 Ego 服务、不导入用户浏览器登录资料，也不替换全局 `ego-browser` 命令。
+
+设置中的 `chromePath` 可指定浏览器路径，留空自动查找；运维也可设置 `DSH_EGO_CHROME_PATH`。未找到浏览器时插件仍可加载，`ego_doctor` 报告缺失，浏览器操作返回明确错误。浏览器程序不包含在 npm 包或 Desktop 安装包中。
+
+实时观察默认使用 CDP JPEG，支持鼠标、键盘和滚动操作，不要求系统 FFmpeg 或单独安装 Node；工具与捕获 worker 使用宿主 Node。FFmpeg H.264 是可选后端，只有用户选择并安装后才使用，相关许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。Web 请求使用宿主认证；Desktop 只信任宿主标识的私有 HTTP 连接，普通 loopback 请求不能凭伪造 cookie 绕过认证。
+
+HTTPS 链接通过 Better Sidebar 的正式 URL target 注册选择一个处理者；插件不安装第二个全局链接拦截器，Sidebar 自带浏览器仍可手动打开。插件卸载会等待其捕获 worker 和独立浏览器停止，不终止其他 Ego 实例。
+
+开发检查：`pnpm install --frozen-lockfile`、`pnpm typecheck`、`pnpm test`。`pnpm release:pack -- --out artifacts` 构建并验证本作用域候选归档；发布工作流仅手动执行，默认 npm `candidate` 标签，普通代码推送只运行检查。
+
+## 上游功能参考
+
+以下内容保留为上游 `v0.8.3` 的功能和历史说明；本 fork 的包名、兼容版本、状态目录、卸载行为和安装入口以上述说明为准。
+
 # ego-browser — 看得见的 Agent 浏览器
 
 <p align="center">

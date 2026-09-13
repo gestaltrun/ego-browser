@@ -1,41 +1,7 @@
-/**
- * ego-browser — DSH integration plugin for the ego-lite browser
- * (https://github.com/CitroLabs/ego-lite, MIT).
- *
- * ego lite is a Chromium browser built for AI agents: agents work in isolated
- * "task spaces" that inherit your real login state without stealing your tabs.
- * The official connection layer is the `ego-browser` CLI: `ego-browser nodejs`
- * reads a JS heredoc on stdin and runs it in a Node runtime with page-driving
- * facades preloaded (page/browser/taskSpaces/site/fetch, raw cdp).
- *
- * This plugin turns that CLI into structured HARNESS tools. Every action tool
- * builds a small script from its arguments, pipes it to `ego-browser nodejs`
- * through ctx.subprocess, and parses the result payload. Scripts target the
- * shared harness facade surface (preloaded by the ego-browser runtime itself):
- * taskSpaces.useOrCreate / .complete, browser.openOrReuseTab, page.info(),
- * page.snapshot(), page.evaluate(), page.waitForTimeout(), page.screenshot(),
- * page.locator(...).click()/.fill(), page.mouse.click(x, y), and the raw cdp().
- * Output is reported through console.log with a sentinel payload.
- *
- * Runtime requirements:
- *   - the `ego-browser` command on PATH (ego lite app, or the
- *     `ego-browser-v2` npm package; Node >= 22), and
- *   - a reachable ego lite browser (the app is macOS-only today; Linux is on
- *     the ego-lite roadmap, PR #202).
- *
- * == 文件内部结构（改动前先看 docs/ARCH.md）==
- *   顶部常量     : SENTINEL / HUMAN_CHECK_PROBE / 默认值
- *   withEgoLock  : 全插件互斥锁（工具串行，防争浏览器）
- *   chrome/env   : Chrome 探测 / 环境自适应
- *   runEgoScript : 脚本执行引擎 + 哨兵解析 + 冷启动重试
- *   defineEgoTool: t() 工具封装基座（自动加锁 + 重试）
- *   registerActionTools   : 大部分 ego_* 工具（用 t() 逐个注册）
- *   registerHelpAndDoctor : ego_help/doctor/script/captcha
- *   EGO_HELP_INDEX / HUMAN_CHECK_PROBE : 工具索引文案 / 人机验证探针
- * 加工具：在 registerActionTools 里 reg(t({...}))，并同步 EGO_HELP_INDEX，跑 npm run build。
- */
+/** Gestaltrun browser tools use the vendored Ego CLI and an independent local Chrome profile. */
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { initCastServer, markEgoToolCall } from './cast-server.ts'
@@ -45,6 +11,7 @@ import { Config as ConfigSchema, resolveConfig, EGO_CLI_BLOCKED, CHROME_BLOCKED,
 import { installEgoBrowserSettings } from './settings.ts'
 import { registerEgoBrowserGateway } from './gateway.ts'
 import { getSharedFfmpegInstallationManager } from './ffmpeg-installation.ts'
+import { managedRuntimeEnvironment, managedStateDirectory } from './managed-runtime.ts'
 import { SENTINEL, j, str, num, bool, readAll, SAFE_FN } from './util.ts'
 import type { EgoContext, RawConfig, ResolvedConfig, SubprocessService, ToolExec, WebServerLike } from './types.ts'
 
@@ -163,7 +130,7 @@ function withEgoLock<T>(fn: () => Promise<T> | T): Promise<T> {
  *    host is byte-for-byte identical to before.
  *  - It is idempotent: the same env yields the same result every call.
  *  - An opt-out switch EGO_BROWSER_AUTO_ADAPT (set to "0"/"false"/"no") restores
- *    the original "inherit host env verbatim" behavior.
+ *    disables discovery while preserving the private profile and state.
  */
 const BUNDLED_WRAPPER = fileURLToPath(
   new URL('../bin/ego-chrome-wrapper.sh', import.meta.url),
@@ -173,6 +140,11 @@ const AUTO_ADAPT_OFF = /^(0|false|no)$/i.test(
   process.env.EGO_BROWSER_AUTO_ADAPT ?? '',
 )
 const COMMON_CHROME_BINS = [
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+  '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  'microsoft-edge',
+  'microsoft-edge-stable',
   'google-chrome-stable',
   'google-chrome',
   'chromium',
@@ -205,9 +177,9 @@ function windowsChromeCandidates(): string[] {
   return out.filter(Boolean) as string[]
 }
 /** Find a usable Chrome binary by scanning PATH + common fixed locations. */
-export function findChromeBinary(): string | undefined {
-  if (process.env.EGO_LINUX_CHROME) {
-    return process.env.EGO_LINUX_CHROME
+export function findChromeBinary(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  if (env.EGO_LINUX_CHROME) {
+    return env.EGO_LINUX_CHROME
   }
   // Windows: probe install dirs first, then walk PATH with %PATHEXT%.
   if (IS_WIN) {
@@ -220,13 +192,13 @@ export function findChromeBinary(): string | undefined {
         // fall through
       }
     }
-    const exts = (process.env.PATHEXT ?? '.EXE;.CMD;.BAT;.COM')
+    const exts = (env.PATHEXT ?? '.EXE;.CMD;.BAT;.COM')
       .split(';')
       .filter(Boolean)
       .map((e) =>
         e.startsWith('.') ? e.toLowerCase() : `.${e.toLowerCase()}`,
       )
-    const dirs = (process.env.PATH ?? '')
+    const dirs = (env.PATH ?? '')
       .split(';')
       .map((d) => d.replace(/^"|"$/g, ''))
       .filter(Boolean)
@@ -257,7 +229,7 @@ export function findChromeBinary(): string | undefined {
         // fall through
       }
     } else {
-      for (const dir of (process.env.PATH ?? '').split(':')) {
+      for (const dir of (env.PATH ?? '').split(':')) {
         if (!dir) {
           continue
         }
@@ -294,13 +266,11 @@ function isHeadlessDetected(platform: NodeJS.Platform = process.platform, env: N
  * Platform/env are injectable for testing; production calls use process defaults.
  */
 export function resolveEgoEnv(cfg: Partial<ResolvedConfig>, { platform = process.platform, baseEnv = process.env }: { platform?: NodeJS.Platform; baseEnv?: NodeJS.ProcessEnv } = {}): NodeJS.ProcessEnv {
-  if (AUTO_ADAPT_OFF) {
-    // New switch explicitly disabled: original behavior, inherit verbatim.
-    return baseEnv
-  }
-  const env: NodeJS.ProcessEnv = { ...baseEnv }
-  const chrome = findChromeBinary()
-  // Settings-configured chrome path (highest priority after user-set env).
+  const env: NodeJS.ProcessEnv = managedRuntimeEnvironment(baseEnv)
+  if (cfg.chromePath) env.EGO_LINUX_CHROME = cfg.chromePath
+  if (AUTO_ADAPT_OFF) return env
+  const chrome = findChromeBinary(env)
+  // The plugin setting takes priority over deployment defaults and discovery.
   // An empty string means "auto-detect" — skip so the platform branches below
   // can run.
   const configChrome = cfg?.chromePath
@@ -317,7 +287,7 @@ export function resolveEgoEnv(cfg: Partial<ResolvedConfig>, { platform = process
   // the bundled wrapper is a POSIX shell script that cannot run here. Pass the
   // binary path directly so the vendored runtime (which uses POSIX `which`)
   // doesn't have to resolve it itself.
-  if (env.EGO_LINUX_CHROME === undefined && platform === 'win32' && chrome) {
+  if (env.EGO_LINUX_CHROME === undefined && (platform === 'win32' || platform === 'darwin') && chrome) {
     env.EGO_LINUX_CHROME = chrome
   }
   // Headless servers (no DISPLAY) must run the backing browser headless.
@@ -592,6 +562,7 @@ function defineEgoTool(ctx: EgoContext, cfg: EgoRuntimeConfig, opts: EgoToolOpti
     timeoutMs: TOOL_TIMEOUT_MS,
     execute: async (args: Record<string, unknown>, exec: ToolExec) =>
       withEgoLock(async () => {
+        exec.signal?.throwIfAborted()
         // Signal the client to auto-open the sidebar Tab on the first ego_*
         // tool call. markEgoToolCall() bumps a host-side counter surfaced via
         // /api/ego/spaces; the LivePreviewController transitions on 0 → >0 and
@@ -632,7 +603,7 @@ export function apply(ctx: EgoContext, config: RawConfig = {}): void {
   ]
   const entry = Object.fromEntries(settingKeys.filter((key) => config[key] !== undefined).map((key) => [key, config[key]]))
   const bridge = installEgoBrowserSettings(ctx, entry)
-  const ffmpegManager = getSharedFfmpegInstallationManager()
+  const ffmpegManager = getSharedFfmpegInstallationManager({ cacheRoot: join(managedStateDirectory(), 'ffmpeg') })
   const initialFfmpegConfig = resolveConfig(bridge.source() as RawConfig)
   void ffmpegManager.check({ configuredPath: initialFfmpegConfig.ffmpegPath, requestedEncoder: initialFfmpegConfig.ffmpegEncoder }).catch(() => {
     /* ignore */
@@ -695,7 +666,7 @@ export function apply(ctx: EgoContext, config: RawConfig = {}): void {
   // forever, zero errors). The official optional-service pattern is a nested
   // inject: the callback runs only once the service is available, and no-ops
   // on hosts without a web server (TUI / headless stay tools-only).
-  ctx.inject?.(['webServer'], (wctx) => {
+  ctx.inject?.(['webServer', 'connection'], (wctx) => {
     try {
       initCastServer(wctx as EgoContext, cfg, bridge, ffmpegManager)
     } catch (err) {
@@ -715,41 +686,17 @@ export function apply(ctx: EgoContext, config: RawConfig = {}): void {
       )
     }
   })
-  // Graceful teardown: stop the persistent browser when the plugin unmounts.
-  // CRITICAL: this must be fire-and-forget, NOT awaited. Awaiting `--stop`
-  // (which asks the browser to graceful-close, ~seconds) stalls the host process
-  // teardown when DSH is killed/restarted. With a self-healing guard that kills
-  // web and expects the old process to exit promptly before restarting it, a
-  // slow/frozen browser here hangs the restart forever ("waiting to restart").
-  // Losing in-memory login cookies on a dirty shutdown beats a restart that
-  // never completes — the clean path still flushes cookies on a graceful DSH
-  // close, and ego_auth_flush exists for explicit persistence.
-  ctx.effect?.(() => {
-    try {
-      const handle = ctx.subprocess.spawn({
-        argv: [process.execPath, cfg.egoBin, '--stop'],
-        cwd: process.cwd(),
-        env: resolveEgoEnv(cfg),
-        stdio: {
-          stdin: { data: '' },
-          stdout: { maxBytes: 1024 },
-          stderr: { maxBytes: 1024 },
-        },
-        // Keep it short; never let this outlive the host's own teardown budget.
-        // But DO give the graceful stop enough time (>= the runtime's
-        // Browser.close + waitForProcessExit window) so the browser merges its
-        // cookie journal into the on-disk profile before DSH is gone — that is
-        // what keeps logins across a restart (original ego-lite behavior).
-        graceMs: 8_000,
-      })
-      // Fire and forget: do NOT return this promise from the effect cleanup.
-      handle.done.catch(() => {
-        /* ignore */
-      })
-    } catch {
-      // never let teardown throw
-    }
-  })
+  ctx.effect?.(() => async () => {
+    const handle = ctx.subprocess.spawn({
+      argv: [process.execPath, cfg.egoBin, '--stop'],
+      cwd: process.cwd(),
+      env: resolveEgoEnv(cfg),
+      stdio: { stdin: { data: '' }, stdout: { maxBytes: 1024 }, stderr: { maxBytes: 1024 } },
+      graceMs: 1000,
+      signal: AbortSignal.timeout(10_000),
+    })
+    await handle.done
+  }, 'ego-browser: stop private browser')
   ctx.logger?.info?.(
     `ego-browser: mounted (egoBin=${cfg.egoBin}, defaultSpace=${cfg.defaultSpace})`,
   )
@@ -857,7 +804,7 @@ function registerAuthFlush(ctx: EgoContext, cfg: EgoRuntimeConfig, reg: (tool: T
             const isWin = process.platform === 'win32'
             const home = e.HOME || e.USERPROFILE || (isWin ? e.LOCALAPPDATA || '' : homedir())
             const stateDir =
-              e.EGO_LINUX_STATE_DIR ||
+              managedStateDirectory(e) ||
               (isWin
                 ? (e.LOCALAPPDATA || `${home}\\AppData\\Local`) + '\\ego-lite-linux'
                 : `${e.XDG_STATE_HOME || `${home}/.local/state`}/ego-lite-linux`)
@@ -926,7 +873,7 @@ function registerActionTools(ctx: EgoContext, cfg: EgoRuntimeConfig, reg: (tool:
     t({
       name: 'ego_space_open',
       description:
-        'Open (or reuse) an ego-lite task space — an isolated browsing context that inherits your login state. It becomes the active space for later ego_* calls that omit `space`.',
+        'Open (or reuse) an ego-lite task space — an isolated browsing context within the plugin profile. It becomes the active space for later ego_* calls that omit `space`.',
       parameters: {
         name: {
           type: 'string',
@@ -1938,12 +1885,13 @@ function registerHelpAndDoctor(ctx: EgoContext, cfg: EgoRuntimeConfig, reg: (too
         lines.push(`egoBin: ${cfg.egoBin}`)
         try { lines.push(`egoBin exists: ${existsSync(cfg.egoBin)}`) } catch { lines.push('egoBin exists: n/a') }
         // Chrome candidates
-        const chrome = findChromeBinary()
+        const chrome = findChromeBinary(resolveEgoEnv(cfg))
+        lines.push(`browser available: ${chrome !== undefined && existsSync(chrome)}`)
         const configured = cfg.chromePath
         if (configured) {
           lines.push(`browser binary: ${configured} (from settings)`)
         } else {
-          lines.push(`browser binary: ${chrome || '(none found — set chromePath in settings, or set EGO_LINUX_CHROME, or install Chrome/Edge/Brave)'}`)
+          lines.push(`browser binary: ${chrome || '(none found — install Chrome/Edge or set chromePath in plugin settings)'}`)
         }
         // User-configured extra CLI args (effective after filtering). ego-CLI
         // args take effect on the next ego_* call; Chrome args only on the next
@@ -1958,7 +1906,7 @@ function registerHelpAndDoctor(ctx: EgoContext, cfg: EgoRuntimeConfig, reg: (too
         const e = process.env
         const home = e.HOME || e.USERPROFILE || (isWin ? e.LOCALAPPDATA || '' : homedir())
         const stateDir =
-          e.EGO_LINUX_STATE_DIR ||
+          managedStateDirectory(e) ||
           (isWin
             ? (e.LOCALAPPDATA || `${home}\\AppData\\Local`) + '\\ego-lite-linux'
             : `${e.XDG_STATE_HOME || `${home}/.local/state`}/ego-lite-linux`)

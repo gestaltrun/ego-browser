@@ -309,27 +309,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function stopSiblingWorkers(): void {
-  const self = String(process.pid)
-  if (IS_WIN) {
-    const ps = `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like '*ego-cast-worker.mjs*' -and $_.ProcessId -ne ${self} } | Select-Object -ExpandProperty ProcessId`
-    try {
-      const output = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')], { encoding: 'utf8', timeout: 8000 })
-      for (const line of output.split(/\r?\n/)) if (/^\d+$/.test(line.trim())) try { execFileSync('taskkill', ['/PID', line.trim(), '/T', '/F'], { stdio: 'ignore' }) } catch { /* ignore */ }
-    } catch { /* ignore */ }
-    return
-  }
-  try {
-    const output = execFileSync('ps', ['-eo', 'pid=,args='], { encoding: 'utf8', timeout: 8000 })
-    for (const line of output.split('\n')) {
-      const match = line.match(/^\s*(\d+)\s+(.+)$/)
-      if (match && match[1] !== self && match[2].includes('ego-cast-worker.mjs')) try { process.kill(Number(match[1]), 'SIGTERM') } catch { /* ignore */ }
-    }
-  } catch { /* ignore */ }
-}
-
 async function main(): Promise<void> {
-  stopSiblingWorkers()
   rmSync(CAST_STATE_FILE, { force: true })
   const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1')

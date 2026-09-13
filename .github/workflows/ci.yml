@@ -1,0 +1,28 @@
+name: Validate Ego plugin
+on:
+  push:
+    branches: ['codex/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm release:pack -- --out artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gestaltrun-ego-browser
+          path: artifacts/*
+          if-no-files-found: error
