@@ -435,7 +435,7 @@ async function clearProfileLock(profileDir) {
 }
 
 // ── X display (Xvfb) handling ───────────────────────────────────────────────
-// A visible (non-headless) browser draws into an X server, and on a machine
+// On Linux, a visible browser draws into an X server, and on a machine
 // with no display — a container, CI runner, headless server — $DISPLAY is
 // unset, so Chrome aborts with "Missing X server or $DISPLAY". Rather than
 // fail, the absence is detected through the environment (the $DISPLAY
@@ -558,7 +558,7 @@ async function spawnXvfb(num) {
 }
 
 /**
- * Make sure a visible browser has an X display to draw into.
+ * Resolve the Linux X display; native macOS and Windows launches inherit the environment.
  *
  * Preference order: (1) a $DISPLAY that already names a live socket — the
  * user's real session, never touched; (2) an Xvfb an earlier launch started
@@ -572,19 +572,14 @@ async function spawnXvfb(num) {
  * handing the same broken display back.
  *
  * @param {{ ignoreEnvDisplay?: boolean }} [options]
- * @returns {Promise<{ display: string, pid: number | null, launched: boolean }>}
- *   `launched` is true only when this call started the X server itself; the
+ * @returns {Promise<{ display: string, pid: number | null, launched: boolean } | null>}
+ *   Null selects the native display server. `launched` is true only when this call started X; the
  *   caller records that in the browser state so stopBrowser knows which
  *   displays are ours to terminate.
  */
 export async function ensureXDisplay({ ignoreEnvDisplay = false } = {}) {
-  // Windows has a desktop session and no X server: Chrome opens a real window
-  // directly (the v0.4.0 Windows adaptation). Returning a pseudo display keeps
-  // the headed path alive without ever touching Xvfb (issue: post-merge cold
-  // start failed with "no X display ... no Xvfb binary on PATH").
-  if (process.platform === "win32") {
-    return { display: process.env.DISPLAY || "win32-desktop", pid: null, launched: false };
-  }
+  // macOS and Windows use native display servers, including on retry.
+  if (process.platform === "darwin" || process.platform === "win32") return null;
   if (!ignoreEnvDisplay && (await displayUsable(process.env.DISPLAY))) {
     return { display: process.env.DISPLAY, pid: null, launched: false };
   }
