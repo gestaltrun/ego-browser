@@ -4,9 +4,23 @@
     "strict": false,
     "noImplicitAny": false,
     "jsx": "react-jsx",
-    "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "types": ["node"]
+    "lib": [
+      "ES2024",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "node"
+    ]
   },
-  "include": ["src/client"],
-  "exclude": ["node_modules", "lib", "bin", "runtime"]
+  "include": [
+    "src/client",
+    "tests/client"
+  ],
+  "exclude": [
+    "node_modules",
+    "lib",
+    "bin",
+    "runtime"
+  ]
 }

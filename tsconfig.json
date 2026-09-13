@@ -3,17 +3,33 @@
     "target": "ES2024",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2024",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "resolveJsonModule": true,
     "isolatedModules": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src", "tests"],
-  "exclude": ["src/client", "node_modules", "lib", "bin", "runtime"]
+  "include": [
+    "src",
+    "tests"
+  ],
+  "exclude": [
+    "src/client",
+    "node_modules",
+    "lib",
+    "bin",
+    "runtime",
+    "tests/client"
+  ]
 }
