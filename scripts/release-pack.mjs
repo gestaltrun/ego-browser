@@ -36,6 +36,8 @@ for (const required of ['lib/index.js', 'lib/client.js', 'bin/ego-cast-worker.mj
   if (!entries.includes(`package/${required}`)) throw new Error(`Missing artifact entry ${required}`)
 }
 if (entries.some(entry => !entry.startsWith('package/') || entry.split('/').includes('..'))) throw new Error('Invalid archive entry')
+const { checkPackedClient } = await import('./check-packed-client.mjs')
+await checkPackedClient(archive)
 const identity = { name: manifest.name, version: manifest.version, filename, integrity: `sha512-${createHash('sha512').update(readFileSync(archive)).digest('base64')}` }
 writeFileSync(join(output, 'gestaltrun-packages.json'), JSON.stringify({ schemaVersion: 1, repository: 'gestaltrun/ego-browser', version: manifest.version, sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(), packages: [identity] }, null, 2) + '\n')
 console.log(JSON.stringify(identity))

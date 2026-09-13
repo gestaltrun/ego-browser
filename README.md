@@ -10,7 +10,7 @@
 
 普通 HTTPS 链接由 Better Sidebar 现有浏览器处理；Ego 不认领通用链接，通过「Agent 浏览器」标签和 `ego_*` 工具使用。观察画面的「可交互」表示输入已绑定，不表示 Agent 暂停；手动操作前请停止当前 Agent 回合，完成后再发送继续指令。「返回实时」只退出历史页固定显示。插件卸载会等待其捕获 worker 和独立浏览器停止，不终止其他 Ego 实例。
 
-开发检查：`pnpm install --frozen-lockfile`、`pnpm typecheck`、`pnpm test`。`pnpm release:pack -- --out artifacts` 构建并验证本作用域候选归档；发布工作流仅手动执行，默认 npm `candidate` 标签，普通代码推送只运行检查。
+开发检查：`pnpm install --frozen-lockfile`、`pnpm typecheck`、`pnpm test`。`pnpm release:pack -- --out artifacts` 构建候选归档，并用官方 ClientModuleSystem 验证归档中的客户端入口只依赖已提供的平台模块；发布工作流仅手动执行，默认 npm `candidate` 标签，普通代码推送只运行检查。
 
 ## 上游功能参考
 

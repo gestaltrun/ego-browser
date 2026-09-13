@@ -66,6 +66,7 @@ const client: UserConfig = {
   sourcemap: true,
   clean: false,
   external: CLIENT_EXTERNALS,
+  noExternal: ['@microsoft/fetch-event-source'],
   outputOptions: {
     entryFileNames: 'client.js',
     banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(ID)}, factory: (require) => {`,
