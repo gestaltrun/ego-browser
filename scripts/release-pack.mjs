@@ -25,6 +25,8 @@ mkdirSync(output, { recursive: true })
 pnpm(['--config.ignore-scripts=true', 'pack', '--pack-destination', output])
 const filename = `${manifest.name.slice(1).replace('/', '-')}-${manifest.version}.tgz`
 const archive = join(output, filename)
+const { canonicalizeArchive } = await import('./canonicalize-archive.mjs')
+writeFileSync(archive, canonicalizeArchive(readFileSync(archive)))
 const packed = JSON.parse(execFileSync('tar', ['-xOf', archive, 'package/package.json'], { encoding: 'utf8' }))
 for (const field of ['dependencies', 'peerDependencies', 'optionalDependencies']) {
   for (const [name, spec] of Object.entries(packed[field] ?? {})) {
