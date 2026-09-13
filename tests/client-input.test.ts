@@ -4,11 +4,11 @@ import { readFile } from "node:fs/promises";
 const source = await readFile(new URL("../src/client/index.ts", import.meta.url), "utf8");
 
 describe("watch panel input and capture status", () => {
-  it("provides local keyboard proxies for floating and sidebar views", () => {
+  it("provides IME input through the shared keyboard proxy", () => {
     expect(source).toMatch(/function createKeyboardProxy\(send\)/);
     expect(source).toMatch(/compositionend/);
     expect(source).toMatch(/send\([^,]+, 'insertText'/);
-    expect((source.match(/keyboardProxy\.focusAt\(e,/g) || []).length).toBe(2);
+    expect(source).toMatch(/keyboardProxy\.focusAt\(e,/);
   });
 
   it("does not gate control input on stream state or default missing status to CDP", () => {

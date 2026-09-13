@@ -2,7 +2,7 @@
 
 `@gestaltrun/dsh-ego-browser@0.8.3-gestaltrun.0` 基于 [Fisfzy/dsh-ego-browser](https://github.com/Fisfzy/dsh-ego-browser) 的 `6133edfbdb3ceb6a982e0d4147860b3c11e1010c`，适配 DSH `0.1.5-rc.2`、Cordis `4.0.2` 和 Gestaltrun Better Sidebar。
 
-默认注册 32 个 `ego_*` 工具和「Agent 浏览器」侧边栏标签。插件复用本机已安装的 Chrome、Edge 或 Chromium 可执行文件，以独立进程启动，资料与运行状态保存在 `$DSH_HOME/ego-browser`（默认 `~/.dsh/ego-browser`）。它不连接现有 Ego 服务、不导入用户浏览器登录资料，也不替换全局 `ego-browser` 命令。
+默认注册 32 个 `ego_*` 工具。Sidebar 服务可用时注册「Agent 浏览器」标签；服务暂不可用时，同一交互视图显示在独立浮窗中，服务恢复后自动切回标签。插件复用本机已安装的 Chrome、Edge 或 Chromium 可执行文件，以独立进程启动，资料与运行状态保存在 `$DSH_HOME/ego-browser`（默认 `~/.dsh/ego-browser`）。它不连接现有 Ego 服务、不导入用户浏览器登录资料，也不替换全局 `ego-browser` 命令。
 
 设置中的 `chromePath` 可指定浏览器路径，留空自动查找；运维也可设置 `DSH_EGO_CHROME_PATH`。未找到浏览器时插件仍可加载，`ego_doctor` 报告缺失，浏览器操作返回明确错误。浏览器程序不包含在 npm 包或 Desktop 安装包中。
 

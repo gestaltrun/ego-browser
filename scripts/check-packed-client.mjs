@@ -6,6 +6,8 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { JSDOM } from 'jsdom'
 import * as React from 'react'
+import * as ReactDOMClient from 'react-dom/client'
+import { checkClientLifecycle } from './check-client-lifecycle.mjs'
 import * as ClientStore from '@deepseek-ai/dsh-client-store'
 
 /** Reject archived client imports absent from the shipped Web platform seeds. */
@@ -26,12 +28,13 @@ export async function checkPackedClient(archive) {
     const url = `/plugins/??${manifest.name}/client.js&rev=archive`
     const modules = bootstrapExports.createClientModuleSystem(target, { id: bootstrap.id, exports: bootstrapExports }, {
       boot: { rev: 'archive', entries: [{ id: manifest.name, url, rev: 'archive' }], batches: [{ phase: 'application', url, rev: 'archive', entries: [manifest.name] }] },
-      staticModules: { react: React, '@deepseek-ai/dsh-client-store': ClientStore },
+      staticModules: { react: React, 'react-dom/client': ReactDOMClient, '@deepseek-ai/dsh-client-store': ClientStore },
       loadBundle: async requestedUrl => { assert.equal(requestedUrl, url); dom.window.eval(client) },
     })
     const plugin = await modules.import(manifest.name, '', {})
     assert.equal(typeof plugin.apply, 'function')
     assert.deepEqual(Array.from(plugin.inject), ['slots', 'locale', 'connection'])
+    await checkClientLifecycle(plugin, dom.window)
   } finally {
     dom.window.close()
   }
