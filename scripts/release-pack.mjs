@@ -33,7 +33,9 @@ for (const field of ['dependencies', 'peerDependencies', 'optionalDependencies']
     if (/^(?:file|link|workspace):/.test(spec)) throw new Error(`Local artifact dependency ${name}`)
   }
 }
-const entries = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).trim().split('\n')
+// Windows tar emits CRLF listings and may print backslashes; keep POSIX archive paths.
+const entries = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' })
+  .split(/\r?\n/u).map(entry => entry.trim().replaceAll('\\', '/')).filter(entry => entry.length > 0)
 for (const required of ['lib/index.js', 'lib/client.js', 'bin/ego-cast-worker.mjs', 'runtime/ego-linux/bin/ego-browser.mjs', 'runtime/ego-browser/dist/out/index.js', 'cordis.patch.yml', 'LICENSE', 'THIRD_PARTY_NOTICES.md']) {
   if (!entries.includes(`package/${required}`)) throw new Error(`Missing artifact entry ${required}`)
 }
